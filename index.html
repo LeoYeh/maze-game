@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A4 迷宮 — 打倒魔王！</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* ── Screen layout ─────────────────────────────────── */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+
+body{
+  background:#d8d0c4;
+  display:flex;flex-direction:column;align-items:center;
+  padding:20px 12px 32px;
+  font-family:'Press Start 2P',monospace;
+  min-height:100vh;
+}
+
+/* ── Toolbar (screen only) ─────────────────────────── */
+.toolbar{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+  margin-bottom:14px;max-width:700px;width:100%;
+}
+.tool-group{
+  display:flex;gap:6px;align-items:center;
+  background:rgba(0,0,0,.08);border-radius:4px;padding:5px 9px;
+}
+.tool-label{font-size:6px;color:#664422;white-space:nowrap;padding-right:2px;}
+
+button{
+  font-family:'Press Start 2P',monospace;
+  font-size:clamp(6px,1.2vw,9px);
+  padding:8px 13px;cursor:pointer;border:2px solid;border-radius:3px;
+  transition:transform .08s,box-shadow .1s;outline:none;white-space:nowrap;
+}
+button:hover{transform:translateY(-1px);}
+button:active{transform:scale(.96);}
+
+.btn-heart{background:#fff0f3;color:#cc2255;border-color:#ffaabb;box-shadow:0 3px 0 #cc8899;}
+.btn-heart.active{background:#ffccd8;outline:2px solid #ee2255;outline-offset:1px;box-shadow:0 1px 0 #cc8899;}
+
+.btn-bowser{background:#fff5ec;color:#993300;border-color:#ffbb88;box-shadow:0 3px 0 #cc8844;}
+.btn-bowser.active{background:#ffc890;outline:2px solid #ff6600;outline-offset:1px;box-shadow:0 1px 0 #cc8844;}
+
+.btn-solve{background:linear-gradient(135deg,#2266dd,#114499);color:#ccddff;border-color:#6699ff;box-shadow:0 3px 0 #0a1f66;}
+.btn-solve:hover{background:linear-gradient(135deg,#3377ee,#1155aa);}
+
+.btn-clear{background:linear-gradient(135deg,#885500,#553300);color:#ffeebb;border-color:#ddaa44;box-shadow:0 3px 0 #332200;}
+.btn-clear:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+.btn-reset{background:linear-gradient(135deg,#448833,#225522);color:#ccffcc;border-color:#88cc66;box-shadow:0 3px 0 #1a3311;}
+.btn-reset:hover{background:linear-gradient(135deg,#55aa44,#336633);}
+
+.btn-print{
+  background:linear-gradient(135deg,#333355,#111133);
+  color:#ccddff;border-color:#8899cc;box-shadow:0 3px 0 #111122;
+  font-size:clamp(6px,1.2vw,9px);
+}
+.btn-print:hover{background:linear-gradient(135deg,#445577,#223355);}
+
+/* ── Slider group ──────────────────────────────────── */
+.slider-group{
+  display:flex;gap:8px;align-items:center;
+  background:rgba(0,0,0,.08);border-radius:4px;padding:5px 10px;
+  flex-wrap:wrap;justify-content:center;
+}
+.slider-label{font-size:6px;color:#664422;white-space:nowrap;}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:110px;height:6px;
+  background:linear-gradient(to right,#cc4400,#ffcc44);
+  border-radius:3px;outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:2px;
+  background:#bb3300;border:2px solid #ffcc44;
+  cursor:pointer;box-shadow:0 2px 0 #771100;
+}
+input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:2px;
+  background:#bb3300;border:2px solid #ffcc44;cursor:pointer;
+}
+.size-display{
+  font-size:7px;color:#bb3300;min-width:52px;text-align:center;
+  background:rgba(255,255,255,.55);border-radius:3px;padding:3px 5px;
+  border:1px solid #ccaa66;
+}
+
+/* ── A4 paper wrapper ──────────────────────────────── */
+/* A4 = 210mm × 297mm. At 96dpi = 794 × 1123px         */
+.a4-paper{
+  width:794px;
+  height:1123px;
+  background:#fff;
+  position:relative;
+  box-shadow:0 4px 32px rgba(0,0,0,.35);
+  overflow:hidden;
+  flex-shrink:0;
+}
+
+/* Scale paper down on small screens */
+@media(max-width:860px){
+  .a4-paper{
+    transform-origin:top center;
+    transform:scale(var(--paper-scale,1));
+    margin-bottom:calc((1123px * (var(--paper-scale,1) - 1)));
+  }
+}
+
+canvas{
+  display:block;
+  position:absolute;
+  top:0;left:0;
+}
+
+/* ── Status (screen only) ──────────────────────────── */
+.status{
+  font-size:clamp(6px,1.2vw,9px);color:#335533;
+  margin-top:12px;text-align:center;min-height:20px;
+  max-width:700px;letter-spacing:.5px;
+}
+.hint{
+  font-size:clamp(5px,1vw,8px);color:#886644;
+  margin-top:5px;text-align:center;opacity:.82;
+  max-width:660px;line-height:2;
+}
+
+/* ── PRINT STYLES ──────────────────────────────────── */
+@media print{
+  @page{size:A4 portrait;margin:0;}
+  body{
+    background:none;padding:0;margin:0;
+    display:block;
+  }
+  .toolbar,.status,.hint{display:none !important;}
+  .a4-paper{
+    width:210mm;height:297mm;
+    box-shadow:none;
+    transform:none !important;
+    margin:0;padding:0;
+    page-break-after:avoid;
+  }
+  canvas{
+    width:210mm !important;
+    height:297mm !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- toolbar (hidden on print) -->
+<div class="toolbar">
+  <!-- complexity slider -->
+  <div class="slider-group">
+    <span class="slider-label">複雜度</span>
+    <div style="display:flex;gap:5px;align-items:center;">
+      <span class="slider-label">簡單</span>
+      <input type="range" id="sizeSlider" min="1" max="5" value="3" step="1">
+      <span class="slider-label">困難</span>
+    </div>
+    <div class="size-display" id="sizeDisplay">30×43</div>
+  </div>
+
+  <div class="tool-group">
+    <span class="tool-label">移動</span>
+    <button class="btn-heart"  id="btnHeart">♥ 愛心</button>
+    <button class="btn-bowser" id="btnBowser">👹 魔王</button>
+  </div>
+  <div class="tool-group">
+    <button class="btn-solve" id="btnSolve">💡 解法</button>
+    <button class="btn-clear" id="btnClear" disabled>✕ 清除</button>
+    <button class="btn-reset" id="btnReset">🔄 新迷宮</button>
+    <button class="btn-print" id="btnPrint">🖨 列印 A4</button>
+  </div>
+</div>
+
+<!-- A4 paper -->
+<div class="a4-paper" id="paperWrap">
+  <canvas id="maze"></canvas>
+</div>
+
+<p class="status" id="status">必須從魔王前方通過，才能取得愛心，再打倒魔王！</p>
+<p class="hint"   id="hint">點選「♥ 愛心」或「👹 魔王」後點格子移動 — 地圖自動重新設計並確認可過關</p>
+
+<script>
+// ── A4 canvas pixel dimensions (96 dpi) ────────────────
+const A4W=794, A4H=1123;
+const PAD=18;
+const USABLE_W=A4W-PAD*2;
+const USABLE_H=A4H-PAD*2;
+
+// ── Complexity levels (fixed A4 size, varying grid density) ──
+const LEVELS=[
+  {cols:15,rows:21,label:'15×21'},   // 1 easy   ~50px cells
+  {cols:20,rows:29,label:'20×29'},   // 2
+  {cols:30,rows:43,label:'30×43'},   // 3 default ~25px
+  {cols:38,rows:57,label:'38×57'},   // 4
+  {cols:50,rows:72,label:'50×72'},   // 5 hard    ~15px
+];
+let levelIdx=2;
+
+let COLS,ROWS,CELL,OX,OY;
+function applyLevel(){
+  const lv=LEVELS[levelIdx];
+  COLS=lv.cols; ROWS=lv.rows;
+  CELL=Math.min(Math.floor(USABLE_W/COLS),Math.floor(USABLE_H/ROWS));
+  OX=Math.floor((A4W-CELL*COLS)/2);
+  OY=Math.floor((A4H-CELL*ROWS)/2);
+  document.getElementById('sizeDisplay').textContent=lv.label;
+  // Clamp marker positions
+  heartPos ={r:Math.min(heartPos.r,ROWS-1), c:Math.min(heartPos.c,COLS-1)};
+  bowserPos={r:Math.min(bowserPos.r,ROWS-1),c:Math.min(bowserPos.c,COLS-1)};
+  if(heartPos.r===bowserPos.r&&heartPos.c===bowserPos.c) heartPos.r=Math.max(0,heartPos.r-1);
+}
+
+const canvas=document.getElementById('maze');
+canvas.width=A4W; canvas.height=A4H;
+const ctx=canvas.getContext('2d');
+
+const wrap=document.getElementById('paperWrap');
+
+// ── Scale paper on small screens ─────────────────────
+function scalePaper(){
+  const avail=window.innerWidth-24;
+  const s=Math.min(1,avail/A4W);
+  document.documentElement.style.setProperty('--paper-scale',s);
+  wrap.style.marginBottom=`${(1123*(s-1))}px`;
+}
+scalePaper();
+window.addEventListener('resize',scalePaper);
+
+// ── State ──────────────────────────────────────────────
+// Initialized after first applyLevel call
+let heartPos ={r:18,c:29};
+let bowserPos={r:42,c:29};
+let maze=[], editMode=null, solvePath=[], animFrame=null;
+let solved=false, hoverCell={r:-1,c:-1};
+
+// ── Generation ─────────────────────────────────────────
+const DIRS=[
+  {dr:-1,dc:0,w:0,opp:2},{dr:0,dc:1,w:1,opp:3},
+  {dr:1,dc:0,w:2,opp:0},{dr:0,dc:-1,w:3,opp:1}
+];
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function initMaze(){
+  maze=Array.from({length:ROWS},()=>
+    Array.from({length:COLS},()=>({visited:false,walls:[true,true,true,true]})));
+}
+function carve(sr,sc){
+  const stack=[{r:sr,c:sc}];
+  maze[sr][sc].visited=true;
+  while(stack.length){
+    const{r,c}=stack[stack.length-1];
+    const dirs=shuffle([...DIRS]).filter(d=>{
+      const nr=r+d.dr,nc=c+d.dc;
+      return nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!maze[nr][nc].visited;
+    });
+    if(!dirs.length){stack.pop();continue;}
+    const d=dirs[0];
+    const nr=r+d.dr,nc=c+d.dc;
+    maze[r][c].walls[d.w]=false;
+    maze[nr][nc].walls[d.opp]=false;
+    maze[nr][nc].visited=true;
+    stack.push({r:nr,c:nc});
+  }
+}
+
+// ── BFS ────────────────────────────────────────────────
+// blocked = Set of r*COLS+c indices that cannot be entered (except destination)
+function bfs(sr,sc,er,ec,blocked){
+  const isBlocked=(r,c)=>blocked&&blocked.has(r*COLS+c)&&!(r===er&&c===ec);
+  if(isBlocked(sr,sc))return[];
+  const vis=Array.from({length:ROWS},()=>new Array(COLS).fill(false));
+  const prev=Array.from({length:ROWS},()=>new Array(COLS).fill(-1));
+  const q=[]; vis[sr][sc]=true; q.push(sr*COLS+sc); let head=0;
+  while(head<q.length){
+    const idx=q[head++]; const r=idx/COLS|0,c=idx%COLS;
+    if(r===er&&c===ec){
+      const path=[];let cur=r*COLS+c;
+      while(cur!==-1){path.push({r:cur/COLS|0,c:cur%COLS});cur=prev[cur/COLS|0][cur%COLS];}
+      return path.reverse();
+    }
+    for(const d of DIRS){
+      const nr=r+d.dr,nc=c+d.dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!vis[nr][nc]&&!maze[r][c].walls[d.w]&&!isBlocked(nr,nc)){
+        vis[nr][nc]=true; prev[nr][nc]=idx; q.push(nr*COLS+nc);
+      }
+    }
+  }
+  return[];
+}
+
+// ── Bowser neighbour zone ───────────────────────────────
+// Returns Set of cell indices adjacent to bowser (not bowser itself)
+function bowserNeighbourSet(){
+  const s=new Set();
+  for(const d of DIRS){
+    const nr=bowserPos.r+d.dr, nc=bowserPos.c+d.dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS) s.add(nr*COLS+nc);
+  }
+  return s;
+}
+
+// Check if a path passes through at least one bowser-adjacent cell
+function pathCrossesZone(path,zone){
+  return path.some(p=>zone.has(p.r*COLS+p.c));
+}
+
+// ── Open extra walls around bowser to create branch choices ──
+// Removes a few walls near bowser, turning the dead-end perfect maze
+// into a small loop area so the player faces real route decisions.
+function openBowserZoneLoops(){
+  const br=bowserPos.r, bc=bowserPos.c;
+  // Collect neighbour pairs that share a wall
+  const candidates=[];
+  for(const d of DIRS){
+    const r1=br+d.dr, c1=bc+d.dc;
+    if(r1<0||r1>=ROWS||c1<0||c1>=COLS) continue;
+    // neighbours of bowser's neighbours (2 steps away)
+    for(const d2 of DIRS){
+      const r2=r1+d2.dr, c2=c1+d2.dc;
+      if(r2<0||r2>=ROWS||c2<0||c2>=COLS) continue;
+      if(r2===br&&c2===bc) continue; // skip back to bowser
+      if(maze[r1][c1].walls[d2.w]) candidates.push({r1,c1,r2,c2,w:d2.w,opp:d2.opp});
+    }
+  }
+  // Also add walls between adjacent neighbours of bowser
+  for(const d of DIRS){
+    const r1=br+d.dr, c1=bc+d.dc;
+    if(r1<0||r1>=ROWS||c1<0||c1>=COLS) continue;
+    for(const d2 of DIRS){
+      const r2=br+d2.dr, c2=bc+d2.dc;
+      if(r2<0||r2>=ROWS||c2<0||c2>=COLS) continue;
+      if(r1===r2&&c1===c2) continue;
+      // check if r1,c1 and r2,c2 are adjacent
+      if(Math.abs(r1-r2)+Math.abs(c1-c2)===1){
+        const dw=DIRS.find(x=>x.dr===r2-r1&&x.dc===c2-c1);
+        if(dw&&maze[r1][c1].walls[dw.w]) candidates.push({r1,c1,r2,c2,w:dw.w,opp:dw.opp});
+      }
+    }
+  }
+  // Open 3-5 random walls from candidates to create loops
+  const opens=Math.min(candidates.length, 3+Math.floor(Math.random()*3));
+  const chosen=shuffle([...candidates]).slice(0,opens);
+  for(const{r1,c1,r2,c2,w,opp} of chosen){
+    maze[r1][c1].walls[w]=false;
+    maze[r2][c2].walls[opp]=false;
+  }
+}
+
+// ── Two-stage solve ─────────────────────────────────────
+// Stage 1: entrance→heart with BOWSER blocked
+// Stage 2: heart→bowser unrestricted
+// Result path must pass through bowser-neighbour zone in stage 1
+function solveTwoStage(){
+  const bb=new Set([bowserPos.r*COLS+bowserPos.c]);
+  const p1=bfs(0,0,heartPos.r,heartPos.c,bb);
+  if(!p1.length) return[];
+  const p2=bfs(heartPos.r,heartPos.c,bowserPos.r,bowserPos.c,null);
+  if(!p2.length) return[];
+  return[...p1,...p2.slice(1)];
+}
+
+// ── Validation ──────────────────────────────────────────
+// Valid maze must:
+//   1. Have entrance→heart path (bowser blocked) that passes through bowser zone
+//   2. Have heart→bowser path
+function isMazeValid(){
+  const bb=new Set([bowserPos.r*COLS+bowserPos.c]);
+  const p1=bfs(0,0,heartPos.r,heartPos.c,bb);
+  if(!p1.length) return false;
+  const zone=bowserNeighbourSet();
+  if(!pathCrossesZone(p1,zone)) return false;
+  const p2=bfs(heartPos.r,heartPos.c,bowserPos.r,bowserPos.c,null);
+  return p2.length>0;
+}
+
+function generateValidMaze(){
+  for(let t=0;t<400;t++){
+    initMaze();
+    carve(0,0);
+    openBowserZoneLoops(); // add branch choices near bowser
+    if(isMazeValid()) return true;
+  }
+  return false;
+}
+
+// ── Draw helpers: cell coords ──────────────────────────
+function cx(c){ return OX+c*CELL; }
+function cy(r){ return OY+r*CELL; }
+
+// ── Draw bowser danger zone highlight ──────────────────
+function drawBowserZone(){
+  const br=bowserPos.r, bc=bowserPos.c;
+  for(const d of DIRS){
+    const nr=br+d.dr, nc=bc+d.dc;
+    if(nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+    // Faint red tint on bowser-adjacent cells
+    ctx.fillStyle='rgba(255,60,0,0.10)';
+    ctx.fillRect(cx(nc)+1, cy(nr)+1, CELL-2, CELL-2);
+    // Small warning dots at cell centre
+    ctx.fillStyle='rgba(220,50,0,0.30)';
+    ctx.beginPath();
+    ctx.arc(cx(nc)+CELL/2, cy(nr)+CELL/2, Math.max(2,CELL*0.10), 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// ── Drawing ────────────────────────────────────────────
+function drawBase(){
+  // white page background
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,A4W,A4H);
+
+  // faint page border (print crop guide)
+  ctx.strokeStyle='rgba(180,160,120,.3)';
+  ctx.lineWidth=.5;
+  ctx.strokeRect(8,8,A4W-16,A4H-16);
+
+  // maze walls
+  const ww=Math.max(1.2,Math.round(CELL*.068));
+  ctx.strokeStyle='#111122';ctx.lineWidth=ww;ctx.lineCap='square';
+
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const x=cx(c),y=cy(r),wl=maze[r][c].walls;
+    if(wl[0]){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+CELL,y);ctx.stroke();}
+    if(wl[1]){ctx.beginPath();ctx.moveTo(x+CELL,y);ctx.lineTo(x+CELL,y+CELL);ctx.stroke();}
+    if(wl[2]){ctx.beginPath();ctx.moveTo(x,y+CELL);ctx.lineTo(x+CELL,y+CELL);ctx.stroke();}
+    if(wl[3]){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y+CELL);ctx.stroke();}
+  }
+
+  // outer border (thicker)
+  ctx.lineWidth=ww*2.2;
+  ctx.strokeRect(cx(0),cy(0),CELL*COLS,CELL*ROWS);
+
+  // title text (top margin area)
+  ctx.save();
+  ctx.fillStyle='#221100';
+  ctx.font=`bold ${Math.round(OY*.45)}px "Press Start 2P", monospace`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🏰 迷宮挑戰  入口 ▶ ♥ 愛心 ▶ 👹 魔王',A4W/2,OY/2);
+  ctx.restore();
+}
+
+function drawHover(r,c){
+  if(r<0||c<0||r>=ROWS||c>=COLS)return;
+  ctx.fillStyle=editMode==='heart'?'rgba(255,30,90,.13)':'rgba(255,90,0,.13)';
+  ctx.fillRect(cx(c)+1,cy(r)+1,CELL-2,CELL-2);
+}
+
+function drawPath(path,steps){
+  if(!path||!path.length||steps<2)return;
+  const n=Math.min(steps,path.length);
+  const hi=path.findIndex(p=>p.r===heartPos.r&&p.c===heartPos.c);
+  function seg(from,to,color,glow){
+    const end=Math.min(to,n);if(end<=from)return;
+    ctx.save();
+    ctx.strokeStyle=glow;ctx.lineWidth=CELL*.45;ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=.2;
+    ctx.beginPath();
+    for(let i=from;i<end;i++){
+      const x=cx(path[i].c)+CELL/2,y=cy(path[i].r)+CELL/2;
+      i===from?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle=color;ctx.lineWidth=CELL*.22;ctx.globalAlpha=.85;
+    ctx.beginPath();
+    for(let i=from;i<end;i++){
+      const x=cx(path[i].c)+CELL/2,y=cy(path[i].r)+CELL/2;
+      i===from?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  if(hi>0&&hi<n){seg(0,hi+1,'#0077cc','#44aaee');seg(hi,n,'#cc2200','#ff7744');}
+  else seg(0,n,'#0077cc','#44aaee');
+  const{r,c}=path[n-1];
+  ctx.fillStyle='#001133';
+  ctx.beginPath();ctx.arc(cx(c)+CELL/2,cy(r)+CELL/2,CELL*.15,0,Math.PI*2);ctx.fill();
+}
+
+function drawMarkers(){
+  const fs=Math.round(CELL*.72);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+
+  // entrance label
+  ctx.font=`${Math.round(OY*.36)}px "Press Start 2P", monospace`;
+  ctx.fillStyle='#006622';
+  ctx.fillText('入口',cx(0)+CELL/2, cy(0)-OY*.38);
+
+  // entrance arrow
+  ctx.font=`${fs}px serif`;
+  ctx.fillStyle='#00aa44';
+  ctx.fillText('▶',cx(0)+CELL/2,cy(0)+CELL/2);
+
+  // heart
+  const{r:hr,c:hc}=heartPos,isH=editMode==='heart';
+  ctx.font=`${Math.round(CELL*(isH?.88:.76))}px serif`;
+  ctx.fillStyle=isH?'#ff0055':'#ee2255';
+  if(isH){ctx.shadowColor='rgba(255,0,80,.5)';ctx.shadowBlur=8;}
+  ctx.fillText('♥',cx(hc)+CELL/2,cy(hr)+CELL/2);
+  ctx.shadowBlur=0;
+  if(isH){ctx.save();ctx.strokeStyle='#ff2255';ctx.lineWidth=1.5;ctx.setLineDash([3,2]);ctx.strokeRect(cx(hc)+2,cy(hr)+2,CELL-4,CELL-4);ctx.restore();}
+
+  // bowser
+  const{r:br,c:bc}=bowserPos,isB=editMode==='bowser';
+  ctx.font=`${Math.round(CELL*(isB?.88:.76))}px serif`;
+  if(isB){ctx.shadowColor='rgba(255,80,0,.5)';ctx.shadowBlur=8;}
+  ctx.fillText('👹',cx(bc)+CELL/2,cy(br)+CELL/2);
+  ctx.shadowBlur=0;
+  if(isB){ctx.save();ctx.strokeStyle='#ff6600';ctx.lineWidth=1.5;ctx.setLineDash([3,2]);ctx.strokeRect(cx(bc)+2,cy(br)+2,CELL-4,CELL-4);ctx.restore();}
+}
+
+function fullDraw(path,steps){
+  path=path||[];steps=steps||0;
+  drawBase();
+  drawBowserZone();
+  if(editMode&&hoverCell.r>=0)drawHover(hoverCell.r,hoverCell.c);
+  drawPath(path,steps);
+  drawMarkers();
+}
+
+// ── Solve / Clear ──────────────────────────────────────
+function clearSolution(){
+  if(animFrame)cancelAnimationFrame(animFrame);
+  solvePath=[];solved=false;
+  document.getElementById('btnClear').disabled=true;
+  fullDraw();
+  setStatus('解答已清除');
+}
+function animateSolve(){
+  if(animFrame)cancelAnimationFrame(animFrame);
+  solvePath=solveTwoStage();
+  if(!solvePath.length){setStatus('❌ 路徑異常，請重新產生迷宮');return;}
+  document.getElementById('btnClear').disabled=false;
+  let steps=2; const total=solvePath.length;
+  const speed=Math.max(1,Math.round(total/80));
+  function frame(){
+    fullDraw(solvePath,steps);
+    if(steps<total){steps=Math.min(steps+speed,total);animFrame=requestAnimationFrame(frame);}
+    else{solved=true;fullDraw(solvePath,total);setStatus(`✨ 入口 → 愛心 → 魔王，共 ${total} 步`);}
+  }
+  animFrame=requestAnimationFrame(frame);
+}
+
+// ── Generate ───────────────────────────────────────────
+function generate(){
+  if(animFrame)cancelAnimationFrame(animFrame);
+  solvePath=[];solved=false;
+  document.getElementById('btnClear').disabled=true;
+  applyLevel();
+  generateValidMaze();
+  fullDraw();
+  setStatus('必須從魔王前方通過，才能取得愛心，再打倒魔王！');
+}
+function regenerate(){
+  if(animFrame)cancelAnimationFrame(animFrame);
+  solvePath=[];solved=false;
+  document.getElementById('btnClear').disabled=true;
+  if(!generateValidMaze()){setStatus('❌ 找不到合法地圖，請換個位置');fullDraw();return;}
+  animateSolve();
+}
+
+// ── Status / Hint ──────────────────────────────────────
+function setStatus(m){document.getElementById('status').textContent=m;}
+function setHint(m){document.getElementById('hint').textContent=m;}
+
+// ── Edit mode ──────────────────────────────────────────
+function setEditMode(mode){
+  editMode=(editMode===mode)?null:mode;
+  document.getElementById('btnHeart').classList.toggle('active',editMode==='heart');
+  document.getElementById('btnBowser').classList.toggle('active',editMode==='bowser');
+  wrap.style.cursor=editMode?'crosshair':'default';
+  setHint(
+    editMode==='heart' ?'點擊格子移動 ♥ 愛心 — 地圖自動重新設計，確保順序正確':
+    editMode==='bowser'?'點擊格子移動 👹 魔王 — 地圖自動重新設計，魔王不擋住愛心':
+    '路線必須經過魔王旁邊才能抵達愛心 — 點選標記後點格子移動位置！'
+  );
+  hoverCell={r:-1,c:-1};
+  fullDraw(solved?solvePath:null,solved?solvePath.length:0);
+}
+
+// ── Canvas interaction ─────────────────────────────────
+function getCell(clientX,clientY){
+  const rect=canvas.getBoundingClientRect();
+  const sx=canvas.width/rect.width,sy=canvas.height/rect.height;
+  const px=(clientX-rect.left)*sx,py=(clientY-rect.top)*sy;
+  return{r:Math.floor((py-OY)/CELL),c:Math.floor((px-OX)/CELL)};
+}
+canvas.addEventListener('mousemove',e=>{
+  if(!editMode)return;
+  const{r,c}=getCell(e.clientX,e.clientY);
+  if(r!==hoverCell.r||c!==hoverCell.c){
+    hoverCell={r,c};
+    fullDraw(solved?solvePath:null,solved?solvePath.length:0);
+  }
+});
+canvas.addEventListener('mouseleave',()=>{
+  hoverCell={r:-1,c:-1};
+  if(editMode)fullDraw(solved?solvePath:null,solved?solvePath.length:0);
+});
+function handlePlace(r,c){
+  if(!editMode)return;
+  if(r<0||r>=ROWS||c<0||c>=COLS)return;
+  if(r===0&&c===0){setStatus('⚠️ 不能放在入口！');return;}
+  if(editMode==='heart'&&r===bowserPos.r&&c===bowserPos.c){setStatus('⚠️ 不能和魔王同格！');return;}
+  if(editMode==='bowser'&&r===heartPos.r&&c===heartPos.c){setStatus('⚠️ 不能和愛心同格！');return;}
+  const label=editMode==='heart'?'♥ 愛心':'👹 魔王';
+  if(editMode==='heart')heartPos={r,c};else bowserPos={r,c};
+  setStatus(`${label} 已移至第 ${r+1} 行、第 ${c+1} 欄 — 重新設計地圖中…`);
+  regenerate();
+}
+canvas.addEventListener('click',e=>{const{r,c}=getCell(e.clientX,e.clientY);handlePlace(r,c);});
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  const{r,c}=getCell(t.clientX,t.clientY);handlePlace(r,c);
+},{passive:false});
+
+// ── Buttons ────────────────────────────────────────────
+document.getElementById('btnHeart') .addEventListener('click',()=>setEditMode('heart'));
+document.getElementById('btnBowser').addEventListener('click',()=>setEditMode('bowser'));
+document.getElementById('btnSolve') .addEventListener('click',()=>{setEditMode(null);animateSolve();});
+document.getElementById('btnClear') .addEventListener('click',()=>{setEditMode(null);clearSolution();});
+document.getElementById('btnReset') .addEventListener('click',()=>{setEditMode(null);generate();});
+document.getElementById('btnPrint').addEventListener('click',()=>{ window.print(); });
+
+const slider=document.getElementById('sizeSlider');
+slider.addEventListener('input',()=>{
+  levelIdx=parseInt(slider.value)-1;
+  document.getElementById('sizeDisplay').textContent=LEVELS[levelIdx].label;
+});
+slider.addEventListener('change',()=>{
+  levelIdx=parseInt(slider.value)-1;
+  setEditMode(null);
+  generate();
+});
+
+generate();
+</script>
+</body>
+</html>
