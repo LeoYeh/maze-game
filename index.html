@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<!-- saved from url=(0049)file:///Users/leoyehmbp2021/Downloads/maze_9.html -->
-<html lang="zh-TW" style="--paper-scale: 1;"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>A4 迷宮 — 打倒魔王！</title>
 <style>
@@ -166,30 +166,30 @@ canvas{
       <input type="range" id="sizeSlider" min="1" max="5" value="3" step="1">
       <span class="slider-label">困難</span>
     </div>
-    <div class="size-display" id="sizeDisplay">15×21</div>
+    <div class="size-display" id="sizeDisplay">30×43</div>
   </div>
 
   <div class="tool-group">
     <span class="tool-label">移動</span>
-    <button class="btn-heart" id="btnHeart">♥ 愛心</button>
+    <button class="btn-heart"  id="btnHeart">♥ 愛心</button>
     <button class="btn-bowser" id="btnBowser">👹 魔王</button>
-    <button class="btn-logo" id="btnLogo">陪玩媽爸</button>
+    <button class="btn-logo"   id="btnLogo">陪玩媽爸</button>
   </div>
   <div class="tool-group">
     <button class="btn-solve" id="btnSolve">💡 解法</button>
-    <button class="btn-clear" id="btnClear" disabled="">✕ 清除</button>
+    <button class="btn-clear" id="btnClear" disabled>✕ 清除</button>
     <button class="btn-reset" id="btnReset">🔄 新迷宮</button>
     <button class="btn-print" id="btnPrint">🖨 列印 A4</button>
   </div>
 </div>
 
 <!-- A4 paper -->
-<div class="a4-paper" id="paperWrap" style="margin-bottom: 0px; cursor: default;">
-  <canvas id="maze" width="794" height="1123"></canvas>
+<div class="a4-paper" id="paperWrap">
+  <canvas id="maze"></canvas>
 </div>
 
-<p class="status" id="status">解答已清除</p>
-<p class="hint" id="hint">路線必須經過魔王旁邊才能抵達愛心 — 點選標記後點格子移動位置！</p>
+<p class="status" id="status">入口 繞過「陪玩媽爸」LOGO、魔王，最後到達愛心！</p>
+<p class="hint"   id="hint">點選「♥ 愛心」或「👹 魔王」後點格子移動 — 地圖自動重新設計並確認可過關</p>
 
 <script>
 // ── A4 canvas pixel dimensions (96 dpi) ────────────────
@@ -531,7 +531,7 @@ function drawBase(){
 
     // Measure segments to manually centre the whole line
     const seg1='入口 ';
-    const swordW=fs*0.9;           // visual width of sword
+    const swordW=fs*0.72;          // visual width of sword emoji
     const seg2=' 繞過「陪玩媽爸」LOGO 、👹魔王 最後到達♥愛心';
     const totalW=ctx.measureText(seg1).width+swordW+ctx.measureText(seg2).width;
     let tx=A4W/2-totalW/2;
@@ -539,8 +539,9 @@ function drawBase(){
     ctx.fillText(seg1,tx,ty);
     tx+=ctx.measureText(seg1).width;
 
-    // Draw mini sword at title height, vertically centred
-    drawSword(tx+swordW/2, ty, fs*0.92);
+    // Draw sword emoji at title height
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText('🗡️',tx,ty);
     tx+=swordW;
 
     ctx.fillText(seg2,tx,ty);
@@ -668,8 +669,10 @@ function drawMarkers(){
   ctx.fillStyle='#006622';
   ctx.fillText('入口',cx(0)+CELL/2, cy(0)-OY*.38);
 
-  // entrance sword
-  drawSword(cx(0)+CELL/2, cy(0)+CELL/2, CELL*0.78);
+  // entrance sword emoji
+  ctx.font=`${Math.round(CELL*0.78)}px serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🗡️',cx(0)+CELL/2,cy(0)+CELL/2);
 
   // heart
   const{r:hr,c:hc}=heartPos,isH=editMode==='heart';
@@ -851,6 +854,5 @@ slider.addEventListener('change',()=>{
 generate();
 logoImg.onload=()=>{ if(maze&&maze.length) fullDraw(solved?solvePath:null,solved?solvePath.length:0); };
 </script>
-
-
-</body></html>
+</body>
+</html>
